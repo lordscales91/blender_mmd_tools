@@ -119,3 +119,14 @@ class MMDMeshSorter(_PanelBase, Panel):
         tbl = tb.column(align=True)
         tbl.operator('mmd_tools.move_mesh_up', text='', icon='TRIA_UP')
         tbl.operator('mmd_tools.move_mesh_down', text='', icon='TRIA_DOWN')
+
+class CSVUtils(_PanelBase, Panel):
+    bl_idname = 'OBJECT_PT_mmd_tools_csv_utils'
+    bl_label = 'CSV Utils'
+    bl_context = ''
+    
+    def draw(self, context):
+        layout = self.layout
+        col = layout.column(align=True)
+        row = col.row()
+        row.operator('mmd_tools.load_csv')

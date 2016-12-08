@@ -200,3 +200,12 @@ def saferelpath(path, start, strategy='inside'):
     else:
         result = os.path.relpath(path, start)
     return result
+
+def normalize_path(filepath, basedir=os.getcwd()):
+        """
+        Normalizes a given file path
+        """
+        normalized = filepath.replace('\\', os.path.sep)
+        if not os.path.isabs(normalized):
+            normalized = os.path.normpath(os.path.join(basedir, normalized))
+        return normalized

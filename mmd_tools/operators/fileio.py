@@ -12,7 +12,6 @@ from bpy.types import OperatorFileListElement
 from bpy_extras.io_utils import ImportHelper, ExportHelper
 
 from mmd_tools import auto_scene_setup
-from mmd_tools.utils import selectAObject
 from mmd_tools.utils import makePmxBoneMap
 from mmd_tools.core.camera import MMDCamera
 from mmd_tools.core.lamp import MMDLamp
@@ -23,6 +22,7 @@ import mmd_tools.core.pmx.exporter as pmx_exporter
 import mmd_tools.core.vmd.importer as vmd_importer
 import mmd_tools.core.vmd.exporter as vmd_exporter
 import mmd_tools.core.model as mmd_model
+from mmd_tools.core.csv.importer import CSVImporter, InvalidFormatException
 
 
 
@@ -513,3 +513,41 @@ class ExportVmd(Operator, ExportHelper):
         wm.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
+class LoadCSV(Operator, ImportHelper):
+    bl_idname = 'mmd_tools.load_csv'
+    bl_label = 'Load CSV'
+    bl_description = 'Loads data from a CSV file(.csv) into the active model'
+    bl_options = {'PRESET'}
+
+    filename_ext = '.csv'
+    filter_glob = bpy.props.StringProperty(default='*.csv', options={'HIDDEN'})
+    encoding = bpy.props.EnumProperty(
+            name='Encoding',
+            description="File's Text Encoding. Must be either Shift-JIS or UTF-8",
+            items = [('sjis', 'Shift-JIS', 'Use Shift-JIS encoding', 0),
+                     ('utf8', 'UTF-8', 'Use UTF-8 encoding', 1)],
+            default='sjis'
+        )
+
+    def execute(self, context):
+        with CSVImporter(self.filepath, context, self.encoding) as importer:
+            try:
+                importer.load()
+            except InvalidFormatException:
+                self.report({ 'ERROR' }, 'Data format is not correct. ' +
+                                        'Be sure that you have set the dot(.) as decimal ' +
+                                        'separator in your regional settings.')
+            except Exception:
+                err_msg = traceback.format_exc()
+                logging.error(err_msg)
+                self.report({ 'ERROR' }, 'Unknown exception')
+        return { 'FINISHED' }
+
+    @classmethod
+    def poll(cls, context):
+        return mmd_model.Model.findRoot(context.active_object) is not None
+
+    def invoke(self, context, event):
+        wm = context.window_manager
+        wm.fileselect_add(self)
+        return {'RUNNING_MODAL'}

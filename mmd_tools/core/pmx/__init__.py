@@ -3,6 +3,8 @@ import struct
 import os
 import logging
 
+from mmd_tools.utils import normalize_path
+
 class InvalidFileError(Exception):
     pass
 class UnsupportedVersionError(Exception):
@@ -809,10 +811,7 @@ class Texture:
         return '<Texture path %s>'%str(self.path)
 
     def load(self, fs):
-        self.path = fs.readStr()
-        self.path = self.path.replace('\\', os.path.sep)
-        if not os.path.isabs(self.path):
-            self.path = os.path.normpath(os.path.join(os.path.dirname(fs.path()), self.path))
+        self.path = normalize_path(fs.readStr(), os.path.dirname(fs.path()))
 
     def save(self, fs):
         relPath = os.path.relpath(self.path, os.path.dirname(fs.path()))
