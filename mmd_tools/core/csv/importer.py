@@ -14,6 +14,9 @@ class InvalidFormatException(Exception):
     pass
 
 class CSVImporter:
+    
+    MATERIAL_DATA_SIZE = 31
+    
     def __init__(self, filepath, context=bpy.context, encoding='sjis'):
         self.filepath = filepath
         self.context = context
@@ -22,21 +25,19 @@ class CSVImporter:
         self.materials_map = {}
 
     def load(self, is_import=False):
-        header = None
         for line in self.__file_obj:
             if line.startswith(';'):
-                header = line[1:].strip().split(',')
+                continue
+            data = line.strip().split(',')
+            if(is_import):
+                self._import_data(data[0], self.parse_values(data[1:]))
             else:
-                data = line.strip().split(',')
-                if header is None or len(header) != len(data):
-                    raise InvalidFormatException()
-                if(is_import):
-                    self._import_data(header, self.parse_values(data[1:]))
-                else:
-                    if(header[0] == 'Material'):
-                        self.load_material(self.parse_values(data[1:]))
-                    elif header[0] == 'Body':
-                        pass # TODO: Implement loading of Rigid Bodies
+                if(data[0] == 'Material'):
+                    if len(data) != self.MATERIAL_DATA_SIZE:
+                        raise InvalidFormatException()
+                    self.load_material(self.parse_values(data[1:]))
+                elif data[0] == 'Body':
+                    pass # TODO: Implement loading of Rigid Bodies
 
         if not is_import:
             self.update_data()
@@ -64,7 +65,7 @@ class CSVImporter:
         enabled_self_shadow = bool(values[16])
         values[17] # Unknown value. 頂点色(0/1)
         values[18] # Unknown value. 描画(0:Tri/1:Point/2:Line)
-        enabled_toon_edge = values [19]
+        enabled_toon_edge = values[19]
         edge_size = values[20]
         edge_color = [values[21], values[22], values[23], values[24]]
         texture_path = values[25]
@@ -89,12 +90,12 @@ class CSVImporter:
         mat.edge_color = edge_color
         mat.comment = comment
         # Resolve the textures
-        toon_patt = r'toon(?P<index>[01][0-9])\.bmp'
+        toon_patt = r'^toon(?P<index>(0[1-9]|10))\.bmp$'
         m = re.match(toon_patt, toon_texture_path)
         if m:
             mat.is_shared_toon_texture = True
             mat.toon_texture = int(m.group('index')) - 1
-        elif  toon_texture_path is not None and toon_texture_path != '':
+        elif toon_texture_path is not None and toon_texture_path != '':
             # Use extra attributes to store the paths
             mat.is_shared_toon_texture = False
             mat.toon_texture_path = toon_texture_path
@@ -119,8 +120,8 @@ class CSVImporter:
         Converts the data strings into the proper types
         """
         string_patt = r'^\"(?P<value>.*)\"$'
-        decimal_patt = r'^[0-9]+\.[0-9]+$'
-        integer_patt = r'^[0-9]+$'
+        decimal_patt = r'^-?[0-9]+\.[0-9]+$'
+        integer_patt = r'^-?[0-9]+$'
         values = []
         for val in data:
             if re.match(string_patt, val):
@@ -154,7 +155,10 @@ class CSVImporter:
                     if mat.alpha < 1.0 or mat.specular_alpha < 1.0 or hasattr(pmx_mat, 'texture_path'):
                         mat.use_transparency = True
                         mat.transparency_method = 'Z_TRANSPARENCY'
-        
+                    else:
+                        # Disable transparency if it's not necessary
+                        mat.use_transparency = False
+
                     mmd_mat.name_j = pmx_mat.name
                     mmd_mat.name_e = pmx_mat.name_e
                     mmd_mat.ambient_color = pmx_mat.ambient
@@ -195,7 +199,9 @@ class CSVImporter:
                     else:
                         fnMat.remove_sphere_texture()
                     mmd_mat.sphere_texture_type = str(pmx_mat.sphere_texture_mode)
-        
+
+        if len(self.materials_map) > 0:
+            logging.warn("some materials were not found")
 
     def __enter__(self):
         return self
