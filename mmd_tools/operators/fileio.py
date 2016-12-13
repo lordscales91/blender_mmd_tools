@@ -22,7 +22,7 @@ import mmd_tools.core.pmx.exporter as pmx_exporter
 import mmd_tools.core.vmd.importer as vmd_importer
 import mmd_tools.core.vmd.exporter as vmd_exporter
 import mmd_tools.core.model as mmd_model
-from mmd_tools.core.csv.importer import CSVImporter, InvalidFormatException
+from mmd_tools.core.csvtools.importer import CSVImporter, InvalidFormatException
 
 
 
