@@ -2,6 +2,7 @@
 import logging
 import re
 import os
+import csv
 
 import bpy
 
@@ -25,17 +26,17 @@ class CSVImporter:
         self.materials_map = {}
 
     def load(self, is_import=False):
-        for line in self.__file_obj:
-            if line.startswith(';'):
+        reader = csv.reader(self.__file_obj)
+        for data in reader:
+            if data[0].startswith(';'):
                 continue
-            data = line.strip().split(',')
             if(is_import):
                 self._import_data(data[0], self.parse_values(data[1:]))
             else:
                 if(data[0] == 'Material'):
                     if len(data) != self.MATERIAL_DATA_SIZE:
                         raise InvalidFormatException()
-                    self.load_material(self.parse_values(data[1:]))
+                    self.load_material(data[1:])
                 elif data[0] == 'Body':
                     pass # TODO: Implement loading of Rigid Bodies
 
@@ -55,24 +56,25 @@ class CSVImporter:
         # First let's store the values into meaningful variables
         name = values[0]
         name_e = values[1]
-        diffuse = [values[2], values[3], values[4], values[5]]
-        specular = [values[6], values[7], values[8]]
-        shininess = values[9]
-        ambient = [values[10], values[11], values[12]]
-        is_double_sided = bool(values[13])
-        enabled_drop_shadow = bool(values[14])
-        enabled_self_shadow_map = bool(values[15])
-        enabled_self_shadow = bool(values[16])
+        diffuse = [float(v) for v in values[2:6]]
+        specular = [float(v) for v in values[6:9]]
+        shininess = float(values[9])
+        ambient = [float(v) for v in values[10:13]]
+        is_double_sided = bool(int(values[13]))
+        enabled_drop_shadow = bool(int(values[14]))
+        enabled_self_shadow_map = bool(int(values[15]))
+        enabled_self_shadow = bool(int(values[16]))
         values[17] # Unknown value. 頂点色(0/1)
         values[18] # Unknown value. 描画(0:Tri/1:Point/2:Line)
-        enabled_toon_edge = values[19]
-        edge_size = values[20]
-        edge_color = [values[21], values[22], values[23], values[24]]
+        enabled_toon_edge = bool(int(values[19]))
+        edge_size = float(values[20])
+        edge_color = [float(v) for v in values[21:25]]
         texture_path = values[25]
         sphere_texture_path = values[26]
-        sphere_texture_mode = values[27]
+        sphere_texture_mode = int(values[27])
         toon_texture_path = values[28]
-        comment = values[29]
+        # Replace linebreaks with spaces for material comments
+        comment = values[29].replace('\\r', '').replace('\\n', ' ')
         mat = Material()
         # Let's start to assign the easy ones
         mat.name = name
@@ -115,27 +117,6 @@ class CSVImporter:
         else:
             self.materials_map[name] = mat
 
-    def parse_values(self, data):
-        """
-        Converts the data strings into the proper types
-        """
-        string_patt = r'^\"(?P<value>.*)\"$'
-        decimal_patt = r'^-?[0-9]+\.[0-9]+$'
-        integer_patt = r'^-?[0-9]+$'
-        values = []
-        for val in data:
-            if re.match(string_patt, val):
-                raw = re.match(string_patt, val).group('value')
-                values.append(raw.replace('\\r', '').replace('\\n', '\n'))
-            elif re.match(decimal_patt, val):
-                values.append(float(val))
-            elif re.match(integer_patt, val):
-                values.append(int(val))
-            else:
-                logging.warn("Unrecognized value: %s" % (val,))
-
-        return values
-
     def update_data(self):
         """
         Updates the active model with the new data
@@ -145,34 +126,13 @@ class CSVImporter:
         basedir = root.get('import_folder', self.__directory)
         for mesh in rig.meshes():
             for mat in mesh.data.materials:
-                mmd_mat = mat.mmd_material
                 # Process each material only once
-                pmx_mat = self.materials_map.pop(mmd_mat.name_j, None)
+                mmd_mat = mat.mmd_material
+                pmx_mat = self.materials_map.pop(mat.mmd_material.name_j, None)
                 if pmx_mat:
-                    mat.diffuse_color = pmx_mat.diffuse[0:3]
-                    mat.alpha = pmx_mat.diffuse[3]
-                    mat.specular_color = pmx_mat.specular
-                    if mat.alpha < 1.0 or mat.specular_alpha < 1.0 or hasattr(pmx_mat, 'texture_path'):
-                        mat.use_transparency = True
-                        mat.transparency_method = 'Z_TRANSPARENCY'
-                    else:
-                        # Disable transparency if it's not necessary
-                        mat.use_transparency = False
-
-                    mmd_mat.name_j = pmx_mat.name
-                    mmd_mat.name_e = pmx_mat.name_e
-                    mmd_mat.ambient_color = pmx_mat.ambient
-                    mmd_mat.diffuse_color = pmx_mat.diffuse[0:3]
-                    mmd_mat.alpha = pmx_mat.diffuse[3]
-                    mmd_mat.specular_color = pmx_mat.specular
-                    mmd_mat.shininess = pmx_mat.shininess
-                    mmd_mat.is_double_sided = pmx_mat.is_double_sided
-                    mmd_mat.enabled_drop_shadow = pmx_mat.enabled_drop_shadow
-                    mmd_mat.enabled_self_shadow_map = pmx_mat.enabled_self_shadow_map
-                    mmd_mat.enabled_self_shadow = pmx_mat.enabled_self_shadow
-                    mmd_mat.enabled_toon_edge = pmx_mat.enabled_toon_edge
-                    mmd_mat.edge_color = pmx_mat.edge_color
-                    mmd_mat.edge_weight = pmx_mat.edge_size                    
+                    fnMat = FnMaterial(mat)
+                    fnMat.update_values(from_pmx=pmx_mat)
+                    mmd_mat.sphere_texture_type = str(pmx_mat.sphere_texture_mode)
                     if pmx_mat.is_shared_toon_texture:
                         mmd_mat.is_shared_toon_texture = True
                         mmd_mat.shared_toon_texture = pmx_mat.toon_texture
@@ -183,22 +143,20 @@ class CSVImporter:
                             mmd_mat.toon_texture = bpy.path.resolve_ncase(normalized)
                         else:
                             mmd_mat.toon_texture = ''
-                    mmd_mat.comment = pmx_mat.comment
-                    fnMat = FnMaterial(mat)
+                    
                     if hasattr(pmx_mat, 'texture_path'):
                         normalized = normalize_path(pmx_mat.texture_path, basedir)
                         img_path = bpy.path.resolve_ncase(normalized)
                         fnMat.create_texture(img_path)
                     else:
                         # Remove if not used
-                        fnMat.remove_texture()
+                        fnMat.remove_texture()                    
                     if hasattr(pmx_mat, 'sphere_texture_path'):
                         normalized = normalize_path(pmx_mat.sphere_texture_path, basedir)
                         img_path = bpy.path.resolve_ncase(normalized)
                         fnMat.create_sphere_texture(img_path)
                     else:
                         fnMat.remove_sphere_texture()
-                    mmd_mat.sphere_texture_type = str(pmx_mat.sphere_texture_mode)
 
         if len(self.materials_map) > 0:
             logging.warn("some materials were not found")

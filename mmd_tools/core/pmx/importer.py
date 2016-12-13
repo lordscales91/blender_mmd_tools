@@ -511,27 +511,8 @@ class PMXImporter:
             mat = bpy.data.materials.new(name=i.name)
             self.__materialTable.append(mat)
             mmd_mat = mat.mmd_material
-            mat.diffuse_color = i.diffuse[0:3]
-            mat.alpha = i.diffuse[3]
-            mat.specular_color = i.specular
-            if mat.alpha < 1.0 or mat.specular_alpha < 1.0 or i.texture != -1:
-                mat.use_transparency = True
-                mat.transparency_method = 'Z_TRANSPARENCY'
-
-            mmd_mat.name_j = i.name
-            mmd_mat.name_e = i.name_e
-            mmd_mat.ambient_color = i.ambient
-            mmd_mat.diffuse_color = i.diffuse[0:3]
-            mmd_mat.alpha = i.diffuse[3]
-            mmd_mat.specular_color = i.specular
-            mmd_mat.shininess = i.shininess
-            mmd_mat.is_double_sided = i.is_double_sided
-            mmd_mat.enabled_drop_shadow = i.enabled_drop_shadow
-            mmd_mat.enabled_self_shadow_map = i.enabled_self_shadow_map
-            mmd_mat.enabled_self_shadow = i.enabled_self_shadow
-            mmd_mat.enabled_toon_edge = i.enabled_toon_edge
-            mmd_mat.edge_color = i.edge_color
-            mmd_mat.edge_weight = i.edge_size
+            fnMat = FnMaterial(mat)
+            fnMat.update_values(from_pmx=i)
             mmd_mat.sphere_texture_type = str(i.sphere_texture_mode)
             if i.is_shared_toon_texture:
                 mmd_mat.is_shared_toon_texture = True
@@ -542,11 +523,9 @@ class PMXImporter:
                     mmd_mat.toon_texture = self.__textureTable[i.toon_texture]
                 else:
                     mmd_mat.toon_texture = ''
-            mmd_mat.comment = i.comment
 
             self.__materialFaceCountTable.append(int(i.vertex_count/3))
             self.__meshObj.data.materials.append(mat)
-            fnMat = FnMaterial(mat)
             if i.texture != -1:
                 texture_slot = fnMat.create_texture(self.__textureTable[i.texture])
                 texture_slot.texture.use_mipmap = self.__use_mipmap

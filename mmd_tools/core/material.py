@@ -261,6 +261,44 @@ class FnMaterial(object):
         ar, ag, ab = mmd_mat.ambient_color
         return [min(1.0,0.5*r+ar), min(1.0,0.5*g+ag), min(1.0,0.5*b+ab)]
 
+    def update_values(self, **kwargs):
+        """
+        This updates the values of the material with the ones provided (Except textures).
+        Depending on the argument given.
+        """
+        if 'from_pmx' in kwargs:
+            pmx_mat = kwargs['from_pmx']
+            mat = self.__material
+            mmd_mat = mat.mmd_material
+            mat.diffuse_color = pmx_mat.diffuse[0:3]
+            mat.alpha = pmx_mat.diffuse[3]
+            mat.specular_color = pmx_mat.specular
+            if (mat.alpha < 1.0 or mat.specular_alpha < 1.0 or 
+                    pmx_mat.texture != -1 or hasattr(pmx_mat, 'texture_path')):
+                mat.use_transparency = True
+                mat.transparency_method = 'Z_TRANSPARENCY'
+            else:
+                # Disable transparency if it's not necessary
+                mat.use_transparency = False
+
+            mmd_mat.name_j = pmx_mat.name
+            mmd_mat.name_e = pmx_mat.name_e
+            mmd_mat.ambient_color = pmx_mat.ambient
+            mmd_mat.diffuse_color = pmx_mat.diffuse[0:3]
+            mmd_mat.alpha = pmx_mat.diffuse[3]
+            mmd_mat.specular_color = pmx_mat.specular
+            mmd_mat.shininess = pmx_mat.shininess
+            mmd_mat.is_double_sided = pmx_mat.is_double_sided
+            mmd_mat.enabled_drop_shadow = pmx_mat.enabled_drop_shadow
+            mmd_mat.enabled_self_shadow_map = pmx_mat.enabled_self_shadow_map
+            mmd_mat.enabled_self_shadow = pmx_mat.enabled_self_shadow
+            mmd_mat.enabled_toon_edge = pmx_mat.enabled_toon_edge
+            mmd_mat.edge_color = pmx_mat.edge_color
+            mmd_mat.edge_weight = pmx_mat.edge_size 
+            mmd_mat.comment = pmx_mat.comment
+            
+        # elif ... Other options
+
     def update_ambient_color(self):
         self.update_diffuse_color()
 
